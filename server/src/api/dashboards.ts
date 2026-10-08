@@ -421,12 +421,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // Chart drill-down: the records behind one bar segment, through the same scoped predicate.
   app.get('/dashboard/chart/requests-by-status', async (req) => {
     const a = need(req, 'request:view');
-    const q = z.object({ type: z.string().max(20).optional(), status: z.string().max(30).optional() }).parse(req.query);
+    const q = z.object({ type: z.string().max(20).optional(), status: z.string().max(200).optional() }).parse(req.query);
     return orgTx(a, async (db) => {
       const p = new Params();
       const conds = [requestScope(a, p), "r.status <> 'cancelled'", `r.starts_at >= now() - interval '1 day'`, `r.starts_at < now() + interval '30 days'`];
       if (q.type) conds.push(`r.type = ${p.add(q.type)}`);
-      if (q.status) conds.push(`r.status = ${p.add(q.status)}`);
+      if (q.status) conds.push(`r.status = ANY(${p.add(q.status.split(','))})`);
       return many(db, `SELECT r.id, r.reference, r.type, r.status, r.starts_at, pe.full_name AS person FROM service_requests r JOIN personnel pe ON pe.id = r.personnel_id WHERE ${conds.join(' AND ')} ORDER BY r.starts_at`, p.values);
     });
   });

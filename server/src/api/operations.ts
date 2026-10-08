@@ -18,8 +18,9 @@ export async function loadCrewChange(db: Db, a: OrgContext, id: string, lock = f
   const idP = p.add(id);
   const row = await one(
     db,
-    `SELECT cc.*, s.name AS asset_name, s.code AS asset_code, s.timezone AS asset_timezone
-     FROM crew_changes cc JOIN assets s ON s.id = cc.asset_id WHERE cc.id = ${idP} AND ${crewChangeScope(a, p)}${lock ? ' FOR UPDATE OF cc' : ''}`,
+    `SELECT cc.*, s.name AS asset_name, s.code AS asset_code, s.timezone AS asset_timezone, ua.display_name AS approved_by_name
+     FROM crew_changes cc JOIN assets s ON s.id = cc.asset_id LEFT JOIN users ua ON ua.id = cc.approved_by
+     WHERE cc.id = ${idP} AND ${crewChangeScope(a, p)}${lock ? ' FOR UPDATE OF cc' : ''}`,
     p.values,
   );
   if (!row) throw notFound();
@@ -140,6 +141,37 @@ export async function operationsRoutes(app: FastifyInstance) {
         p.values,
       );
       return { from, to, rows };
+    });
+  });
+
+  // Readiness matrix: people with upcoming assignments against the requirements of their positions.
+  app.get('/readiness', async (req) => {
+    const a = need(req, 'personnel:view');
+    if (['employee', 'supplier'].includes(a.membership.role)) throw new ApiError(403, 'forbidden');
+    const q = req.query as Record<string, string>;
+    const days = Math.min(Math.max(Number(q.days ?? 60) || 60, 7), 180);
+    return orgTx(a, async (db) => {
+      const p = new Params();
+      const conds = [assetScope(a, p, 's'), personnelScope(a, p, 'pe'), "x.status IN ('planned', 'confirmed', 'in_progress')", `x.ends_on >= current_date`, `x.starts_on <= current_date + ${p.add(days)}::int`];
+      if (q.assetId) conds.push(`x.asset_id = ${p.add(idParam(q.assetId))}`);
+      const rows = await many(
+        db,
+        `SELECT x.id AS assignment_id, x.personnel_id, pe.full_name, pe.employee_no, s.id AS asset_id, s.name AS asset_name, pos.title AS position, x.starts_on, x.ends_on, coalesce(pos.requirement_ids, '{}') AS requirement_ids
+         FROM assignments x JOIN personnel pe ON pe.id = x.personnel_id JOIN assets s ON s.id = x.asset_id LEFT JOIN positions pos ON pos.id = x.position_id
+         WHERE ${conds.join(' AND ')} ORDER BY s.name, x.starts_on, pe.full_name`,
+        p.values,
+      );
+      const types = await many(db, 'SELECT id, code, name_en, name_pt, category FROM requirement_types WHERE org_id = $1 ORDER BY code', [a.org.id]);
+      const used = new Set(rows.flatMap((r) => r.requirement_ids));
+      const cells = await readinessFor(db, a.org.id, rows.map((r) => ({ personnelId: r.personnel_id, from: r.starts_on, to: r.ends_on, requirementIds: r.requirement_ids })));
+      return {
+        days,
+        requirements: types.filter((t) => used.has(t.id)),
+        rows: rows.map((r) => {
+          const c = cells.get(`${r.personnel_id}:${r.starts_on}`) ?? [];
+          return { ...r, cells: c, ready: isReady(c) };
+        }),
+      };
     });
   });
 

@@ -8,3 +8,4 @@ coverage/
 /web/test-results/
 /web/playwright-report/
 *.log
+/web/test-results/

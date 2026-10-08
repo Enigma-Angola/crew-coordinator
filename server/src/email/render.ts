@@ -79,6 +79,12 @@ export function safeAttachmentName(name: string) {
   return (n.endsWith('.xlsx') ? n : `${n}.xlsx`).slice(0, 120);
 }
 
+/** dd/mm/yyyy [hh:mm] — the convention shared by the Portuguese and British English templates. */
+function dayFirst(v: string) {
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}))?/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}${m[4] ? ` ${m[4]}` : ''}` : v;
+}
+
 /** One summary line per person for the email body (no restricted data). */
 export function personLines(rows: Row[], lang: Lang) {
   return rows
@@ -87,7 +93,7 @@ export function personLines(rows: Row[], lang: Lang) {
       const what = [r['details.from'] && r['details.to'] ? `${r['details.from']} → ${r['details.to']}` : '', r['details.city'] ?? '', r['details.pickup_location'] ?? '', r['details.course'] ?? '']
         .filter(Boolean)
         .join(' ');
-      return `- [${r['request.reference']}] ${r['person.full_name']} (${r['person.employee_no']})${what ? ` — ${what}` : ''}${when ? ` — ${String(when).replace('T', ' ')}` : ''}`;
+      return `- [${r['request.reference']}] ${r['person.full_name']} (${r['person.employee_no']})${what ? ` — ${what}` : ''}${when ? ` — ${dayFirst(String(when))}` : ''}`;
     })
     .join('\n');
 }

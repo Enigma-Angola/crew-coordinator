@@ -352,11 +352,11 @@ export async function seedDemo(connectionString: string, opts: { reset?: boolean
     // Tasks: onboarding with an overdue item, and a verification task.
     await c.query(
       `INSERT INTO tasks (org_id, title, kind, status, priority, assignee_id, due_at, personnel_id, created_by) VALUES
-        ($1, 'Collect BOSIET certificate copy', 'onboarding', 'done', 'normal', $2, now() - interval '5 days', $3, $2),
-        ($1, 'Medical examination booking', 'onboarding', 'todo', 'high', $2, now() - interval '1 day', $3, $2),
-        ($1, 'Verify BOSIET renewal', 'verification', 'todo', 'normal', $2, now() + interval '2 days', $4, $5),
-        ($1, 'Confirm helicopter seats for CC-${year}-0001', 'mobilisation', 'in_progress', 'urgent', $6, now() + interval '2 days', NULL, $2),
-        ($1, 'Upload updated passport scan', 'document_request', 'todo', 'normal', $7, now() + interval '7 days', $8, $5)`,
+        ($1, 'Recolher cópia do certificado BOSIET', 'onboarding', 'done', 'normal', $2, now() - interval '5 days', $3, $2),
+        ($1, 'Marcação do exame médico', 'onboarding', 'todo', 'high', $2, now() - interval '1 day', $3, $2),
+        ($1, 'Verificar renovação do BOSIET', 'verification', 'todo', 'normal', $2, now() + interval '2 days', $4, $5),
+        ($1, 'Confirmar lugares no helicóptero para CC-${year}-0001', 'mobilisation', 'in_progress', 'urgent', $6, now() + interval '2 days', NULL, $2),
+        ($1, 'Carregar digitalização atualizada do passaporte', 'document_request', 'todo', 'normal', $7, now() + interval '7 days', $8, $5)`,
       [orgA.id, users['helena.hr'], people.rosa, people.ines, users['carla.coord'], users['carla.coord'], users['joao.employee'], people.joao],
     );
     await c.query("UPDATE tasks SET crew_change_id = $2 WHERE org_id = $1 AND kind = 'mobilisation'", [orgA.id, cc1.id]);
