@@ -222,7 +222,7 @@ export async function collaborationRoutes(app: FastifyInstance) {
       const auditRows = await many(
         db,
         `SELECT e.at, e.action, e.metadata, u.display_name AS actor FROM audit_events e LEFT JOIN users u ON u.id = e.actor_id
-         WHERE e.org_id = $1 AND e.entity_type = $2 AND e.entity_id = $3 AND e.action NOT LIKE '%restricted_viewed' ORDER BY e.seq`,
+         WHERE e.org_id = $1 AND e.entity_type = $2 AND e.entity_id = $3 AND e.action NOT LIKE '%restricted_viewed' AND e.action <> 'comment.created' ORDER BY e.seq`,
         [a.org.id, q.entityType, q.entityId],
       );
       const comments = await many(
