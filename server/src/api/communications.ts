@@ -17,7 +17,7 @@ import { notify } from './collaboration.js';
 import { idParam } from './util.js';
 import { workbookDefinitionSchema, inspectTemplate } from '../email/xlsx.js';
 import { approvePackage, loadPackage, packageMime, packagePreview, preparePackages, processOutbox, queuePackage, recordExternalSend, regeneratePackage } from '../email/packages.js';
-import { ingestInbound, linkMessage } from '../email/ingest.js';
+import { ingestInbound, linkMessage, refreshReconciliation } from '../email/ingest.js';
 import { CONNECTORS, GraphClient, graphAuthorizeUrl, graphAvailable, graphExchangeCode, sealTokens } from '../email/connectors/graph.js';
 import { ReauthorisationRequired } from '../email/connectors/types.js';
 import { findReferences, ownContentRange } from '../email/extraction.js';
@@ -556,6 +556,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
       );
       const proposals = await many(db, 'SELECT * FROM extraction_proposals WHERE message_id = $1 AND request_id = ANY($2::uuid[]) ORDER BY created_at', [id, visible.map((v) => v.id)]);
       const reconciliations = await many(db, 'SELECT id, status, result, created_at FROM workbook_reconciliations WHERE message_id = $1', [id]);
+      for (const rec of reconciliations) await refreshReconciliation(db, a.org.id, rec.result);
       await audit(db, actorOf(a), { orgId: a.org.id, action: 'message.viewed', entityType: 'message', entityId: id });
       return {
         ...m,
@@ -719,7 +720,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
       const r = await one(db, 'SELECT * FROM workbook_reconciliations WHERE id = $1 AND org_id = $2', [id, a.org.id]);
       if (!r) throw notFound();
       if (r.package_id) await loadPackage(db, a, r.package_id);
-      return r;
+      return { ...r, result: await refreshReconciliation(db, a.org.id, r.result) };
     });
   });
 
@@ -733,6 +734,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
       const rec = await one(db, "SELECT * FROM workbook_reconciliations WHERE id = $1 AND org_id = $2 AND status = 'pending' FOR UPDATE", [id, a.org.id]);
       if (!rec) throw notFound();
       if (rec.package_id) await loadPackage(db, a, rec.package_id);
+      await refreshReconciliation(db, a.org.id, rec.result);
       const applied = [];
       for (const s of b.selections) {
         const row = rec.result.rows.find((r: any) => r.requestId === s.requestId);

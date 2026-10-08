@@ -125,7 +125,7 @@ export async function preparePackages(db: Db, a: OrgContext, p: { crewChangeId?:
 }
 
 async function defaultMailbox(db: Db, orgId: string) {
-  return one(db, "SELECT id, address FROM mailbox_connections WHERE org_id = $1 AND status = 'connected' ORDER BY kind DESC, connected_at LIMIT 1", [orgId]);
+  return one(db, "SELECT id, address, status FROM mailbox_connections WHERE org_id = $1 AND status = 'connected' ORDER BY kind DESC, connected_at LIMIT 1", [orgId]);
 }
 
 async function buildPackage(db: Db, a: OrgContext, g: Group, purpose: 'request' | 'amendment', existing?: any) {

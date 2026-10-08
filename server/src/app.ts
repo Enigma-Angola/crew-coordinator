@@ -22,6 +22,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       : false,
     trustProxy: config.TRUST_PROXY,
     bodyLimit: 2 * 1024 * 1024,
+    maxParamLength: 600, // signed download tokens travel in the path
   });
 
   await app.register(cookie);
@@ -67,6 +68,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (err.statusCode === 429) return reply.code(429).send({ error: 'rate_limited' });
     if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: 'invalid_request' });
     req.log.error({ err }, 'unhandled error');
+    if (config.NODE_ENV === 'test') console.error('[500]', req.method, req.url, err);
     return reply.code(500).send({ error: 'internal_error' });
   });
 

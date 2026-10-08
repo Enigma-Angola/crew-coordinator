@@ -330,7 +330,7 @@ export async function operationsRoutes(app: FastifyInstance) {
       await loadPersonnelForWrite(db, a, b.personnelId);
       let assignmentId = b.assignmentId ?? null;
       if (!assignmentId && b.direction === 'on') {
-        const asg = await one(db, `SELECT id FROM assignments WHERE personnel_id = $1 AND asset_id = $2 AND status <> 'cancelled' AND starts_on <= $3 + 3 AND ends_on >= $3 ORDER BY starts_on LIMIT 1`, [
+        const asg = await one(db, `SELECT id FROM assignments WHERE personnel_id = $1 AND asset_id = $2 AND status <> 'cancelled' AND starts_on <= $3::date + 3 AND ends_on >= $3::date ORDER BY starts_on LIMIT 1`, [
           b.personnelId,
           cc.asset_id,
           cc.scheduled_on,

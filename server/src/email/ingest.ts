@@ -306,6 +306,7 @@ export async function reconcileReturnedWorkbook(db: Db, orgId: string, returned:
         changes.push({
           column: c.heading,
           key: c.key,
+          type: c.type,
           field,
           sent: sentV,
           returned: returnedV,
@@ -321,6 +322,7 @@ export async function reconcileReturnedWorkbook(db: Db, orgId: string, returned:
         changes.push({
           column: p.heading.join(' + '),
           key: base,
+          type: 'datetime',
           field: base,
           sent: sentFull || null,
           returned: value,
@@ -361,6 +363,21 @@ export async function reconcileReturnedWorkbook(db: Db, orgId: string, returned:
     [orgId, returned.id, original.id, pkg?.package_id ?? null, messageId, JSON.stringify(result)],
   );
 
+  // A row the supplier changed in the returned spreadsheet is a response for that request,
+  // even when the email body does not mention it.
+  if (messageId) {
+    for (const row of rows.filter((r) => r.requestId && ['changed', 'conflict'].includes(r.status))) {
+      const added = await db.query(
+        "INSERT INTO message_links (message_id, request_id, org_id, method, confidence) VALUES ($1,$2,$3,'returned_workbook',0.95) ON CONFLICT DO NOTHING",
+        [messageId, row.requestId, orgId],
+      );
+      if (added.rowCount) {
+        await db.query('UPDATE service_requests SET first_response_at = coalesce(first_response_at, now()) WHERE id = $1', [row.requestId]);
+        await addRequestEvent(db, orgId, row.requestId, 'response_received', null, { messageId, detail: { method: 'returned_workbook' } });
+      }
+    }
+  }
+
   // Narrow automation: for suppliers explicitly marked as trusted structured sources, a pure
   // booking-reference fill-in on an exactly matched row with no conflict is applied directly.
   if (supplier?.trusted_structured_updates) {
@@ -377,4 +394,29 @@ export async function reconcileReturnedWorkbook(db: Db, orgId: string, returned:
   }
   await audit(db, {}, { orgId, action: 'workbook.reconciled', entityType: 'attachment', entityId: returned.id, metadata: result.summary });
   return rec.id;
+}
+
+/**
+ * Re-evaluates a stored reconciliation against the records as they are now. Records may
+ * have changed between the reply arriving and a person reviewing it, so conflict flags are
+ * always recomputed before display and before anything is applied.
+ */
+export async function refreshReconciliation(db: Db, orgId: string, result: any) {
+  for (const row of result.rows ?? []) {
+    if (!row.requestId || !row.changes?.length || row.autoApplied) continue;
+    const current = await one(db, 'SELECT * FROM service_requests WHERE id = $1 AND org_id = $2', [row.requestId, orgId]);
+    row.requestVersion = current?.version ?? null;
+    for (const c of row.changes) {
+      const raw = c.key.startsWith('details.') ? current?.details?.[c.key.slice(8)] ?? null : current?.[c.field] ?? null;
+      const now = canonicalSnapshot(c.type ?? 'text', raw);
+      c.current = now;
+      c.conflict = now !== c.sent && now !== c.returned;
+    }
+    row.status = row.changes.some((c: any) => c.conflict) ? 'conflict' : 'changed';
+  }
+  if (result.summary) {
+    result.summary.changed = result.rows.filter((r: any) => r.status === 'changed').length;
+    result.summary.conflict = result.rows.filter((r: any) => r.status === 'conflict').length;
+  }
+  return result;
 }
