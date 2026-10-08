@@ -4,6 +4,10 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import { ZodError } from 'zod';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import { config } from './config.js';
 import { ApiError } from './http/errors.js';
 import { loadAuth } from './auth/session.js';
@@ -75,5 +79,15 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(authRoutes);
   await app.register(registerApi, { prefix: '/api' });
   app.get('/healthz', async () => ({ ok: true }));
+
+  // In production the API also serves the built single-page app from the same origin.
+  const webDist = process.env.WEB_DIST ?? join(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
+  if (existsSync(join(webDist, 'index.html'))) {
+    await app.register(fastifyStatic, { root: webDist, prefix: '/', wildcard: false, maxAge: '1h' });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.url.startsWith('/api/') || req.url.startsWith('/auth/')) return reply.code(404).send({ error: 'not_found' });
+      return reply.header('cache-control', 'no-store').sendFile('index.html');
+    });
+  }
   return app;
 }

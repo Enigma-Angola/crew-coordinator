@@ -1,0 +1,28 @@
+# Local infrastructure for running Crew Coordinator against a real identity provider and scanner.
+# NOTE: this file and deploy/keycloak/realm-crew.json were written for this release but could not be
+# exercised in the build environment (no container runtime). Treat them as a starting point and
+# verify before relying on them — see docs/ACCEPTANCE.md.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: crew_coordinator
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: change-me
+    ports: ["8080:8080"]
+    volumes: ["./deploy/keycloak:/opt/keycloak/data/import:ro"]
+
+  clamav:
+    image: clamav/clamav:1.4
+    ports: ["3310:3310"]
+
+volumes:
+  pgdata: {}

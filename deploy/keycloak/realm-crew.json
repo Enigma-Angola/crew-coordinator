@@ -1,0 +1,45 @@
+{
+  "realm": "crew",
+  "enabled": true,
+  "displayName": "Crew Coordinator",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": true,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "passwordPolicy": "length(12) and notUsername and notEmail and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 43200,
+  "clients": [
+    {
+      "clientId": "crew-coordinator",
+      "name": "Crew Coordinator",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "replace-with-a-generated-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:5173/auth/callback"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:5173/signin" },
+      "protocolMappers": [
+        { "name": "amr", "protocol": "openid-connect", "protocolMapper": "oidc-amr-mapper", "config": { "id.token.claim": "true", "access.token.claim": "false" } }
+      ]
+    }
+  ],
+  "requiredActions": [
+    { "alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": false },
+    { "alias": "webauthn-register", "name": "WebAuthn Register", "providerId": "webauthn-register", "enabled": true, "defaultAction": false },
+    { "alias": "VERIFY_EMAIL", "name": "Verify Email", "providerId": "VERIFY_EMAIL", "enabled": true, "defaultAction": true }
+  ]
+}
